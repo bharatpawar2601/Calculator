@@ -1,51 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Calculator</title>
-
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111827">
+  <title>CalcSpace — Calculator V2</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="CalcSpace home">
+        <span class="brand-icon">∑</span>
+        <span><strong>CalcSpace</strong><small>Calculator <b>V2</b></small></span>
+      </a>
+      <div class="top-actions">
+        <span class="status-pill"><span class="status-dot"></span> Ready to calculate</span>
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle light and dark theme" title="Toggle theme">☼</button>
+      </div>
+    </header>
 
-    <div class="calculator">
-
-        <!-- Display -->
-        <input type="text" id="display" readonly>
-
-        <!-- Buttons -->
-        <div class="buttons">
-
-            <button class="clear" onclick="clearDisplay()">C</button>
-            <button onclick="deleteLast()">⌫</button>
-            <button onclick="appendValue('.')">.</button>
-            <button class="operator" onclick="appendValue('/')">÷</button>
-
-            <button onclick="appendValue('7')">7</button>
-            <button onclick="appendValue('8')">8</button>
-            <button onclick="appendValue('9')">9</button>
-            <button class="operator" onclick="appendValue('*')">×</button>
-
-            <button onclick="appendValue('4')">4</button>
-            <button onclick="appendValue('5')">5</button>
-            <button onclick="appendValue('6')">6</button>
-            <button class="operator" onclick="appendValue('-')">−</button>
-
-            <button onclick="appendValue('1')">1</button>
-            <button onclick="appendValue('2')">2</button>
-            <button onclick="appendValue('3')">3</button>
-            <button class="operator" onclick="appendValue('+')">+</button>
-
-            <button class="zero" onclick="appendValue('0')">0</button>
-            <button class="equal" onclick="calculate()">=</button>
-
+    <main class="layout">
+      <section class="calculator-card" aria-label="Calculator">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">EVERYDAY MATH, SIMPLIFIED</p>
+            <h1>Standard calculator</h1>
+          </div>
+          <span class="version-tag">V2.0</span>
         </div>
 
-    </div>
+        <div class="display-panel">
+          <div class="display-meta">
+            <span id="displayMode">STANDARD MODE</span>
+            <button id="copyResult" class="text-btn" type="button" title="Copy current display">Copy result</button>
+          </div>
+          <div id="expression" class="expression" aria-label="Expression"></div>
+          <output id="display" class="display" aria-live="polite" aria-label="Calculator display">0</output>
+          <p id="message" class="message" aria-live="polite">Use your keyboard or the buttons below.</p>
+        </div>
 
-    <script src="script.js"></script>
+        <div class="keypad" id="keypad">
+          <button class="key utility" data-action="clear" type="button">AC</button>
+          <button class="key utility" data-action="backspace" type="button" aria-label="Backspace">⌫</button>
+          <button class="key utility" data-value="%" type="button">%</button>
+          <button class="key operator" data-value="÷" type="button">÷</button>
 
+          <button class="key" data-value="7" type="button">7</button>
+          <button class="key" data-value="8" type="button">8</button>
+          <button class="key" data-value="9" type="button">9</button>
+          <button class="key operator" data-value="×" type="button">×</button>
+
+          <button class="key" data-value="4" type="button">4</button>
+          <button class="key" data-value="5" type="button">5</button>
+          <button class="key" data-value="6" type="button">6</button>
+          <button class="key operator" data-value="−" type="button">−</button>
+
+          <button class="key" data-value="1" type="button">1</button>
+          <button class="key" data-value="2" type="button">2</button>
+          <button class="key" data-value="3" type="button">3</button>
+          <button class="key operator" data-value="+" type="button">+</button>
+
+          <button class="key utility" data-action="sign" type="button">+/−</button>
+          <button class="key" data-value="0" type="button">0</button>
+          <button class="key" data-value="." type="button">.</button>
+          <button class="key equals" data-action="equals" type="button">=</button>
+        </div>
+        <div class="keyboard-hint"><span>Keyboard supported</span><span><kbd>Enter</kbd> calculate <span class="hint-divider">·</span> <kbd>Esc</kbd> clear</span></div>
+      </section>
+
+      <aside class="history-card" aria-label="Calculation history">
+        <div class="history-heading">
+          <div>
+            <p class="eyebrow">YOUR RECENT WORK</p>
+            <h2>History <span id="historyCount" class="count-badge">0</span></h2>
+          </div>
+          <button id="clearHistory" class="text-btn danger-text" type="button">Clear all</button>
+        </div>
+        <p class="history-subtitle">Your calculations stay in this browser.</p>
+        <div id="historyList" class="history-list">
+          <div class="empty-state">
+            <span class="empty-icon">↗</span>
+            <strong>No calculations yet</strong>
+            <p>Your recent results will appear here.</p>
+          </div>
+        </div>
+        <div class="history-footer"><span class="privacy-icon">▣</span> Saved locally on this device</div>
+      </aside>
+    </main>
+    <footer class="footer">
+      <span>CalcSpace <span class="footer-dot">•</span> Built with HTML, CSS & JavaScript</span>
+      <span>Small steps. Big solutions.</span>
+    </footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="script.js"></script>
 </body>
 </html>
