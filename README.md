@@ -1,3 +1,3 @@
-# CalcSpace Scientific — Calculator V3
+# Calculator
 
-A responsive scientific calculator built with HTML, CSS, and vanilla JavaScript.
+A responsive calculator built with HTML, CSS, and vanilla JavaScript.
