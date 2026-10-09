@@ -302,3 +302,4 @@ document.addEventListener("keydown", (e) => {
 
 render();
 renderHistory();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
