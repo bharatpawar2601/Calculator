@@ -1,67 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#111827">
-  <title>CalcSpace Scientific</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcii – Scientific Calculator</title>
+    <meta name="description" content="Calcii: a fast calculator with scientific functions, history and keyboard support.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <a class="brand" href="#"><span class="logo">∑</span><span><strong>CalcSpace</strong><small>SCIENTIFIC CALCULATOR <b>V3</b></small></span></a>
-      <div class="top-actions">
-        <span class="badge"><i></i> Ready</span>
-        <button id="themeBtn" class="icon-btn" type="button" title="Toggle theme" aria-label="Toggle theme">☼</button>
-      </div>
-    </header>
+<main class="app">
 
-    <main class="layout">
-      <section class="calculator panel">
-        <div class="section-title">
-          <div><p class="eyebrow">PRECISION AT YOUR FINGERTIPS</p><h1>Scientific calculator</h1></div>
-          <div class="angle-switch" aria-label="Angle mode"><button type="button" id="degBtn" class="selected">DEG</button><button type="button" id="radBtn">RAD</button></div>
-        </div>
+    <section class="calc" aria-label="Calculator">
+        <header class="bar">
+            <h1>Calcii</h1>
+            <div class="tabs">
+                <button class="on" data-a="mode" data-m="basic">Basic</button>
+                <button data-a="mode" data-m="sci">Scientific</button>
+            </div>
+            <button class="icon" id="theme" data-a="theme" aria-label="Switch light or dark theme">◐</button>
+        </header>
 
         <div class="screen">
-          <div class="screen-top"><span id="modeLabel">DEGREES</span><button id="copyBtn" type="button" class="link-btn">Copy result</button></div>
-          <div id="expression" class="expression"></div>
-          <output id="display" aria-live="polite">0</output>
-          <div id="status" class="status">Use buttons or your keyboard.</div>
+            <span class="angle" id="angle">DEG</span>
+            <div class="expr" id="expr"></div>
+            <button class="result" id="result" title="Click to copy">0</button>
         </div>
 
-        <div class="keypad" id="keypad">
-          <button class="key fn" data-fn="sin">sin</button><button class="key fn" data-fn="cos">cos</button><button class="key fn" data-fn="tan">tan</button><button class="key fn" data-fn="log">log</button><button class="key fn" data-fn="ln">ln</button>
-          <button class="key fn" data-fn="sqrt">√</button><button class="key fn" data-fn="square">x²</button><button class="key fn" data-fn="pow">xʸ</button><button class="key fn" data-value="(">(</button><button class="key fn" data-value=")">)</button>
-          <button class="key utility" data-action="clear">AC</button><button class="key utility" data-action="backspace">⌫</button><button class="key utility" data-value="%">%</button><button class="key operator" data-value="÷">÷</button><button class="key fn" data-constant="pi">π</button>
-          <button class="key" data-value="7">7</button><button class="key" data-value="8">8</button><button class="key" data-value="9">9</button><button class="key operator" data-value="×">×</button><button class="key fn" data-constant="e">e</button>
-          <button class="key" data-value="4">4</button><button class="key" data-value="5">5</button><button class="key" data-value="6">6</button><button class="key operator" data-value="−">−</button><button class="key fn" data-fn="reciprocal">1/x</button>
-          <button class="key" data-value="1">1</button><button class="key" data-value="2">2</button><button class="key" data-value="3">3</button><button class="key operator" data-value="+">+</button><button class="key fn" data-fn="factorial">n!</button>
-          <button class="key utility" data-action="sign">+/−</button><button class="key" data-value="0">0</button><button class="key" data-value=".">.</button><button class="key equals" data-action="equals">=</button><button class="key fn" data-value="Ans">Ans</button>
+        <div class="keys sci" id="sci" hidden>
+            <button class="fn" data-v="sin(">sin</button>
+            <button class="fn" data-v="cos(">cos</button>
+            <button class="fn" data-v="tan(">tan</button>
+            <button class="fn" data-a="deg" id="degBtn">Deg</button>
+            <button class="fn" data-v="log(">log</button>
+            <button class="fn" data-v="ln(">ln</button>
+            <button class="fn" data-v="√(">√</button>
+            <button class="fn" data-v="^">xʸ</button>
+            <button class="fn" data-v="π">π</button>
+            <button class="fn" data-v="e">e</button>
+            <button class="fn" data-v="(">(</button>
+            <button class="fn" data-v=")">)</button>
         </div>
-        <div class="keyboard-help"><span>Keyboard enabled</span><span><kbd>Enter</kbd> calculate · <kbd>Esc</kbd> clear</span></div>
-      </section>
 
-      <aside class="side-column">
-        <section class="panel history-panel">
-          <div class="side-title"><div><p class="eyebrow">PAST CALCULATIONS</p><h2>History <span id="historyCount">0</span></h2></div><button id="clearHistory" class="link-btn danger" type="button">Clear all</button></div>
-          <p class="muted">Saved on this device in this browser.</p>
-          <div id="historyList" class="history-list"><div class="empty"><span>↗</span><strong>No calculations yet</strong><p>Your results will appear here.</p></div></div>
-          <button id="historyToggle" class="outline-btn" type="button">Hide history</button>
-        </section>
-        <section class="panel info-panel">
-          <p class="eyebrow">QUICK GUIDE</p>
-          <div class="guide-row"><span class="guide-icon">π</span><div><strong>Constants</strong><p>Use π and e in expressions.</p></div></div>
-          <div class="guide-row"><span class="guide-icon">∠</span><div><strong>Degrees / radians</strong><p>Choose DEG or RAD for trig functions.</p></div></div>
-          <div class="guide-row"><span class="guide-icon">↺</span><div><strong>Reusable history</strong><p>Select a past calculation to reuse its result.</p></div></div>
-          <div class="note">History is stored locally. It is not shared across devices.</div>
-        </section>
-      </aside>
-    </main>
-    <footer>CalcSpace Scientific <span>•</span> HTML · CSS · JavaScript</footer>
-  </div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="script.js"></script>
+        <div class="keys">
+            <button class="ac" data-a="clear">AC</button>
+            <button data-a="del" aria-label="Delete last">⌫</button>
+            <button class="op" data-v="%">%</button>
+            <button class="op" data-v="÷">÷</button>
+
+            <button data-v="7">7</button>
+            <button data-v="8">8</button>
+            <button data-v="9">9</button>
+            <button class="op" data-v="×">×</button>
+
+            <button data-v="4">4</button>
+            <button data-v="5">5</button>
+            <button data-v="6">6</button>
+            <button class="op" data-v="−">−</button>
+
+            <button data-v="1">1</button>
+            <button data-v="2">2</button>
+            <button data-v="3">3</button>
+            <button class="op" data-v="+">+</button>
+
+            <button data-v="0">0</button>
+            <button data-v=".">.</button>
+            <button data-a="ans">Ans</button>
+            <button class="eq" data-a="eq">=</button>
+        </div>
+    </section>
+
+    <aside class="hist" aria-label="History">
+        <div class="hist-head">
+            <h2>History</h2>
+            <button data-a="clearhist">Clear</button>
+        </div>
+        <ul id="history"></ul>
+    </aside>
+
+</main>
+<div id="toast" role="status"></div>
+<script src="script.js"></script>
 </body>
 </html>

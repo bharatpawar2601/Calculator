@@ -1,308 +1,304 @@
-const display = document.getElementById("display");
-const expressionView = document.getElementById("expression");
-const statusView = document.getElementById("status");
-const historyList = document.getElementById("historyList");
-const historyCount = document.getElementById("historyCount");
-const toast = document.getElementById("toast");
+// ---------- Elements & state ----------
+const exprEl = document.getElementById("expr");
+const resEl = document.getElementById("result");
+const histEl = document.getElementById("history");
+const toastEl = document.getElementById("toast");
 
-let expression = "";
-let answer = 0;
-let angleMode = "DEG";
-let justCalculated = false;
-let history = readHistory();
-let toastTimer;
+let expr = "";          // what the user has typed
+let ans = "";           // last answer
+let done = false;       // true right after pressing "="
+let deg = true;         // degrees or radians
+let history = load("calcii-history", []);
 
-function readHistory() {
-  try {
-    const data = JSON.parse(localStorage.getItem("calcspace-scientific-history") || "[]");
-    return Array.isArray(data) ? data.slice(0, 100) : [];
-  } catch { return []; }
+const OPS = "+−-×÷^";
+
+// ---------- Safe storage helpers ----------
+function load(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+    catch { return fallback; }
 }
-function persistHistory() {
-  try { localStorage.setItem("calcspace-scientific-history", JSON.stringify(history.slice(0, 100))); }
-  catch { showToast("Browser storage is unavailable."); }
-}
-function showToast(text) {
-  toast.textContent = text;
-  toast.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 2100);
-}
-function formatNumber(n) {
-  if (!Number.isFinite(n)) throw new Error("Result is outside the supported range.");
-  if (Object.is(n, -0)) n = 0;
-  return String(Number(n.toPrecision(12)));
-}
-function render() {
-  display.textContent = expression || "0";
-  expressionView.textContent = "";
-}
-function insert(text) {
-  if (justCalculated && /^(?:\d|\.|π|e|\()/.test(text)) expression = "";
-  justCalculated = false;
-  if (expression === "0" && /^\d$/.test(text)) expression = "";
-  expression += text;
-  statusView.textContent = "Use buttons or your keyboard.";
-  render();
-}
-function clearCalc() {
-  expression = "";
-  justCalculated = false;
-  statusView.textContent = "Use buttons or your keyboard.";
-  render();
-}
-function backspace() {
-  if (justCalculated) { clearCalc(); return; }
-  expression = expression.slice(0, -1);
-  render();
-}
-function toggleSign() {
-  if (!expression) { expression = "-"; render(); return; }
-  const m = expression.match(/(\d+(?:\.\d*)?|\.\d+)$/);
-  if (m) {
-    const start = m.index;
-    const before = expression.slice(0, start);
-    const value = m[0];
-    expression = before.endsWith("-") && (before.length === 1 || /[+\-×÷(]$/.test(before.slice(0, -1)))
-      ? before.slice(0, -1) + value : before + "-" + value;
-  } else expression = "-" + expression;
-  render();
+function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-function factorial(n) {
-  if (!Number.isInteger(n) || n < 0 || n > 170) throw new Error("Factorial requires an integer from 0 to 170.");
-  let result = 1;
-  for (let i = 2; i <= n; i++) result *= i;
-  return result;
+// ---------- Expression evaluator (no eval) ----------
+const fail = (msg) => { throw new Error(msg); };
+
+function tokenize(s) {
+    const re = /(\d+\.?\d*|\.\d+)(E[+-]?\d+)?|[a-zπ]+|[-+*/^%()√]/y;
+    const out = [];
+    let i = 0;
+    while (i < s.length) {
+        if (s[i] === " ") { i++; continue; }
+        re.lastIndex = i;
+        const m = re.exec(s);
+        if (!m) fail("Invalid expression");
+        out.push(m[0]);
+        i = re.lastIndex;
+    }
+    return out;
 }
 
-// Safe tokenizer + recursive-descent parser; no eval().
-function evaluate(source) {
-  const s = source.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-").replace(/π/g, "pi");
-  const tokens = [];
-  let i = 0;
-  while (i < s.length) {
-    if (/\s/.test(s[i])) { i++; continue; }
-    const rest = s.slice(i);
-    const number = rest.match(/^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i);
-    if (number) { tokens.push({type:"number", value:Number(number[0])}); i += number[0].length; continue; }
-    const word = rest.match(/^[a-zA-Z]+/);
-    if (word) { tokens.push({type:"word", value:word[0].toLowerCase()}); i += word[0].length; continue; }
-    if ("+-*/^!()%".includes(s[i])) { tokens.push({type:s[i], value:s[i]}); i++; continue; }
-    throw new Error("Unsupported character: " + s[i]);
-  }
-  let p = 0;
-  const peek = () => tokens[p];
-  const take = () => tokens[p++];
-  const toRadians = x => angleMode === "DEG" ? x * Math.PI / 180 : x;
-  const trigInput = x => angleMode === "DEG" ? x * Math.PI / 180 : x;
+function evaluate(src) {
+    try {
+        let s = src.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
+        const open = (s.match(/\(/g) || []).length - (s.match(/\)/g) || []).length;
+        s += ")".repeat(Math.max(0, open));          // auto-close brackets
 
-  function primary() {
-    const t = take();
-    if (!t) throw new Error("Complete the expression first.");
-    let value;
-    if (t.type === "number") value = t.value;
-    else if (t.type === "(") {
-      value = addSub();
-      if (!peek() || take().type !== ")") throw new Error("Missing closing parenthesis.");
-    } else if (t.type === "+" || t.type === "-") {
-      value = primary();
-      if (t.type === "-") value = -value;
-    } else if (t.type === "word") {
-      if (t.value === "pi") value = Math.PI;
-      else if (t.value === "e") value = Math.E;
-      else if (t.value === "ans") value = answer;
-      else {
-        if (!peek() || take().type !== "(") throw new Error(`${t.value} needs parentheses, e.g. ${t.value}(30).`);
-        const arg = addSub();
-        if (!peek() || take().type !== ")") throw new Error("Missing closing parenthesis.");
-        switch (t.value) {
-          case "sin": value = Math.sin(trigInput(arg)); break;
-          case "cos": value = Math.cos(trigInput(arg)); break;
-          case "tan":
-            if (angleMode === "DEG" && Math.abs(Math.cos(trigInput(arg))) < 1e-12) throw new Error("tan is undefined at this angle.");
-            value = Math.tan(trigInput(arg)); break;
-          case "asin": value = angleMode === "DEG" ? Math.asin(arg) * 180 / Math.PI : Math.asin(arg); break;
-          case "acos": value = angleMode === "DEG" ? Math.acos(arg) * 180 / Math.PI : Math.acos(arg); break;
-          case "atan": value = angleMode === "DEG" ? Math.atan(arg) * 180 / Math.PI : Math.atan(arg); break;
-          case "sqrt": if (arg < 0) throw new Error("Square root of a negative number is not real."); value = Math.sqrt(arg); break;
-          case "log": if (arg <= 0) throw new Error("log requires a positive number."); value = Math.log10(arg); break;
-          case "ln": if (arg <= 0) throw new Error("ln requires a positive number."); value = Math.log(arg); break;
-          case "abs": value = Math.abs(arg); break;
-          case "exp": value = Math.exp(arg); break;
-          default: throw new Error("Unknown function: " + t.value);
+        const t = tokenize(s);
+        let p = 0, pct = false;
+        const peek = () => t[p];
+        const next = () => t[p++];
+        const startsFactor = (x) => x && (/^[\d.]/.test(x) || x === "(" || x === "√" || /^[a-zπ]/.test(x));
+        const toRad = (x) => (deg ? (x * Math.PI) / 180 : x);
+
+        const F = {
+            sin: (x) => Math.sin(toRad(x)),
+            cos: (x) => Math.cos(toRad(x)),
+            tan: (x) => {
+                if (deg && Math.abs(x % 180) === 90) fail("Undefined");
+                return Math.tan(toRad(x));
+            },
+            log: (x) => (x > 0 ? Math.log10(x) : fail("Invalid input")),
+            ln: (x) => (x > 0 ? Math.log(x) : fail("Invalid input")),
+            sqrt: (x) => (x >= 0 ? Math.sqrt(x) : fail("Invalid input")),
+            "√": (x) => (x >= 0 ? Math.sqrt(x) : fail("Invalid input")),
+        };
+
+        function addSub() {
+            let v = term();
+            while (peek() === "+" || peek() === "-") {
+                const op = next();
+                let r = term();
+                if (pct) r = v * r;                   // 200 + 10% = 220
+                v = op === "+" ? v + r : v - r;
+            }
+            return v;
         }
-      }
-    } else throw new Error("Expected a number or function.");
-    if (!Number.isFinite(value)) throw new Error("Result is outside the supported range.");
-    return postfix(value);
-  }
-  function postfix(value) {
-    while (peek() && (peek().type === "!" || peek().type === "%")) {
-      const op = take().type;
-      value = op === "!" ? factorial(value) : value / 100;
+        function term() {
+            pct = false;
+            let v = unary();
+            for (;;) {
+                const x = peek();
+                if (x === "*" || x === "/") {
+                    next();
+                    const r = unary();
+                    pct = false;
+                    if (x === "/") { if (r === 0) fail("Can't divide by zero"); v /= r; }
+                    else v *= r;
+                } else if (startsFactor(x)) {         // implicit multiply: 2π, 3(4+1)
+                    v *= power();
+                    pct = false;
+                } else return v;
+            }
+        }
+        function unary() {
+            if (peek() === "-") { next(); return -unary(); }
+            if (peek() === "+") { next(); return unary(); }
+            return power();
+        }
+        function power() {
+            const b = postfix();
+            if (peek() === "^") { next(); const e = unary(); pct = false; return Math.pow(b, e); }
+            return b;
+        }
+        function postfix() {
+            let v = primary();
+            while (peek() === "%") { next(); v /= 100; pct = true; }
+            return v;
+        }
+        function primary() {
+            const x = next();
+            if (x === undefined) fail("Incomplete expression");
+            if (/^[\d.]/.test(x)) return parseFloat(x);
+            if (x === "(") {
+                const v = addSub();
+                if (next() !== ")") fail("Missing bracket");
+                return v;
+            }
+            if (x === "π") return Math.PI;
+            if (x === "e") return Math.E;
+            if (F[x]) return F[x](primary());
+            return fail("Invalid expression");
+        }
+
+        const v = addSub();
+        if (p < t.length) fail("Invalid expression");
+        if (!Number.isFinite(v)) fail("Invalid result");
+        return { v };
+    } catch (e) {
+        return { err: e.message };
     }
-    return value;
-  }
-  function power() {
-    let value = primary();
-    if (peek() && peek().type === "^") { take(); value = Math.pow(value, unary()); }
-    return value;
-  }
-  function unary() {
-    if (peek() && (peek().type === "+" || peek().type === "-")) {
-      const op = take().type;
-      return op === "-" ? -unary() : unary();
-    }
-    return power();
-  }
-  function multiply() {
-    let value = unary();
-    while (peek() && (peek().type === "*" || peek().type === "/")) {
-      const op = take().type, rhs = unary();
-      if (op === "/" && rhs === 0) throw new Error("Cannot divide by zero.");
-      value = op === "*" ? value * rhs : value / rhs;
-    }
-    return value;
-  }
-  function addSub() {
-    let value = multiply();
-    while (peek() && (peek().type === "+" || peek().type === "-")) {
-      const op = take().type, rhs = multiply();
-      value = op === "+" ? value + rhs : value - rhs;
-    }
-    return value;
-  }
-  if (!tokens.length) throw new Error("Enter a calculation first.");
-  const result = addSub();
-  if (p < tokens.length) {
-    if (peek().type === "(") throw new Error("Use an operator between values, e.g. 2×(3+4).");
-    throw new Error("Please check the expression.");
-  }
-  if (!Number.isFinite(result)) throw new Error("Result is outside the supported range.");
-  return result;
 }
-function calculate() {
-  try {
-    const input = expression;
-    const result = evaluate(input);
-    const output = formatNumber(result);
-    answer = result;
-    expressionView.textContent = input + " =";
-    expression = output;
-    justCalculated = true;
-    statusView.textContent = "Calculated successfully.";
-    history.unshift({input, output, mode:angleMode, time:Date.now()});
-    history = history.slice(0, 100);
-    persistHistory();
+
+// Round off floating-point noise (0.1 + 0.2 → 0.3, sin(180°) → 0)
+const fmt = (n) => String(parseFloat(n.toPrecision(12))).replace("e", "E");
+
+// ---------- Display ----------
+function render(final = false, error = "") {
+    exprEl.textContent = expr;
+    exprEl.scrollLeft = exprEl.scrollWidth;
+    resEl.className = "result";
+    if (error) {
+        resEl.textContent = error;
+        resEl.classList.add("err");
+        return;
+    }
+    let text = "0";
+    if (final) text = expr || "0";
+    else if (expr) {
+        const r = evaluate(expr);
+        text = r.err ? "\u00a0" : fmt(r.v);
+        resEl.classList.add("prev");
+    }
+    resEl.textContent = text;
+    if (text.length > 11) resEl.classList.add("long");
+}
+
+// ---------- Input ----------
+function add(v) {
+    const isOp = v.length === 1 && OPS.includes(v);
+    if (done) {
+        if (!(isOp || v === "%")) expr = "";       // typing a number starts fresh
+        done = false;
+    }
+    const last = expr.slice(-1);
+
+    if (isOp) {
+        if (!expr) { if (v !== "−") return; }       // only a minus can start
+        else if (OPS.includes(last)) {
+            if (v === "−" && "×÷^".includes(last)) { /* allow 5×−3 */ }
+            else expr = expr.slice(0, -1);          // swap the operator
+        }
+    }
+    if (v === "%" && (!expr || OPS.includes(last))) return;
+
+    if (v === ".") {
+        const num = expr.match(/[\d.]+$/);
+        if (num && num[0].includes(".")) return;
+        if (!num) v = "0.";
+    }
+    if (expr.length >= 60) return toast("Maximum length reached");
+    expr += v;
+    render();
+}
+
+function del() {
+    if (done) { clearAll(); return; }
+    expr = expr.replace(/(sin\(|cos\(|tan\(|log\(|ln\(|√\(|.)$/, "");
+    render();
+}
+
+function clearAll() { expr = ""; done = false; render(); }
+
+function equals() {
+    if (!expr) return;
+    const r = evaluate(expr);
+    if (r.err) return render(false, r.err);
+    const out = fmt(r.v);
+    const open = (expr.match(/\(/g) || []).length - (expr.match(/\)/g) || []).length;
+    history.unshift({ e: expr + ")".repeat(Math.max(0, open)), r: out });
+    history = history.slice(0, 30);
+    save("calcii-history", history);
+    ans = out;
+    expr = out;
+    done = true;
+    render(true);
     renderHistory();
-    display.textContent = output;
-  } catch (e) {
-    statusView.textContent = e.message || "Unable to calculate.";
-    showToast(statusView.textContent);
-  }
 }
-function applyFunction(fn) {
-  if (fn === "pow") { insert("^"); return; }
-  const map = {sqrt:"sqrt(", sin:"sin(", cos:"cos(", tan:"tan(", log:"log(", ln:"ln(", reciprocal:"1/(", square:"("};
-  if (fn === "factorial") { insert("!"); return; }
-  if (fn === "square") { insert(")^2"); return; }
-  if (fn === "reciprocal") { insert("1/("); return; }
-  if (map[fn]) insert(map[fn]);
-}
+
+// ---------- History ----------
 function renderHistory() {
-  historyCount.textContent = history.length;
-  historyList.replaceChildren();
-  if (!history.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.innerHTML = "<span>↗</span><strong>No calculations yet</strong><p>Your results will appear here.</p>";
-    historyList.append(empty);
-    return;
-  }
-  history.forEach(item => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "history-item";
-    const left = document.createElement("span");
-    const exp = document.createElement("span");
-    exp.className = "history-expression";
-    exp.textContent = item.input + " =";
-    const res = document.createElement("span");
-    res.className = "history-result";
-    res.textContent = item.output;
-    left.append(exp, res);
-    const time = document.createElement("span");
-    time.className = "history-time";
-    time.textContent = item.mode + " · " + new Date(item.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
-    btn.append(left, time);
-    btn.addEventListener("click", () => {
-      answer = Number(item.output);
-      expression = item.output;
-      justCalculated = true;
-      expressionView.textContent = item.input + " =";
-      display.textContent = item.output;
-      statusView.textContent = "Result restored from history.";
+    histEl.innerHTML = "";
+    if (!history.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "Your calculations will appear here.";
+        histEl.appendChild(li);
+        return;
+    }
+    history.forEach((h, i) => {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.dataset.h = i;
+        b.innerHTML = '<span class="e"></span><span class="r"></span>';
+        b.querySelector(".e").textContent = h.e + " =";
+        b.querySelector(".r").textContent = h.r;
+        li.appendChild(b);
+        histEl.appendChild(li);
     });
-    historyList.append(btn);
-  });
 }
-document.getElementById("keypad").addEventListener("click", e => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  if (b.dataset.value !== undefined) insert(b.dataset.value);
-  else if (b.dataset.constant) insert(b.dataset.constant === "pi" ? "π" : "e");
-  else if (b.dataset.fn) applyFunction(b.dataset.fn);
-  else if (b.dataset.action === "clear") clearCalc();
-  else if (b.dataset.action === "backspace") backspace();
-  else if (b.dataset.action === "sign") toggleSign();
-  else if (b.dataset.action === "equals") calculate();
-});
-document.getElementById("degBtn").addEventListener("click", () => setAngle("DEG"));
-document.getElementById("radBtn").addEventListener("click", () => setAngle("RAD"));
-function setAngle(mode) {
-  angleMode = mode;
-  document.getElementById("degBtn").classList.toggle("selected", mode === "DEG");
-  document.getElementById("radBtn").classList.toggle("selected", mode === "RAD");
-  document.getElementById("modeLabel").textContent = mode === "DEG" ? "DEGREES" : "RADIANS";
-  statusView.textContent = `Trigonometric functions use ${mode.toLowerCase()}.`;
+
+// ---------- Theme, mode, angle ----------
+const root = document.documentElement;
+function setTheme(t) {
+    root.dataset.theme = t;
+    save("calcii-theme", t);
 }
-document.getElementById("clearHistory").addEventListener("click", () => {
-  history = [];
-  persistHistory();
-  renderHistory();
-  showToast("History cleared.");
+setTheme(load("calcii-theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+
+function setMode(m) {
+    document.getElementById("sci").hidden = m !== "sci";
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+    save("calcii-mode", m);
+}
+setMode(load("calcii-mode", "basic"));
+
+function toggleDeg() {
+    deg = !deg;
+    document.getElementById("angle").textContent = deg ? "DEG" : "RAD";
+    document.getElementById("degBtn").textContent = deg ? "Deg" : "Rad";
+    render();
+}
+
+// ---------- Toast & copy ----------
+let toastTimer;
+function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1500);
+}
+
+async function copyResult() {
+    const text = resEl.textContent.trim();
+    if (!text || resEl.classList.contains("err")) return;
+    try { await navigator.clipboard.writeText(text); toast("Copied " + text); }
+    catch { toast("Copy not supported here"); }
+}
+
+// ---------- Events ----------
+document.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.id === "result") return copyResult();
+    if (b.dataset.h !== undefined) {
+        expr = history[b.dataset.h].r;
+        done = true;
+        return render(true);
+    }
+    if (b.dataset.v) return add(b.dataset.v);
+    switch (b.dataset.a) {
+        case "clear": clearAll(); break;
+        case "del": del(); break;
+        case "eq": equals(); break;
+        case "ans": if (ans) add(ans); else toast("No answer yet"); break;
+        case "deg": toggleDeg(); break;
+        case "mode": setMode(b.dataset.m); break;
+        case "theme": setTheme(root.dataset.theme === "dark" ? "light" : "dark"); break;
+        case "clearhist": history = []; save("calcii-history", history); renderHistory(); break;
+    }
 });
-document.getElementById("historyToggle").addEventListener("click", e => {
-  const hidden = historyList.hidden;
-  historyList.hidden = !hidden;
-  e.currentTarget.textContent = hidden ? "Hide history" : "Show history";
+
+document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    const map = { "*": "×", "/": "÷", "-": "−" };
+    if (/^[0-9.+^%()]$/.test(k) || map[k]) { e.preventDefault(); add(map[k] || k); }
+    else if (k === "Enter" || k === "=") { e.preventDefault(); equals(); }
+    else if (k === "Backspace") { e.preventDefault(); del(); }
+    else if (k === "Escape") clearAll();
 });
-document.getElementById("themeBtn").addEventListener("click", () => {
-  document.body.classList.toggle("light");
-  const light = document.body.classList.contains("light");
-  document.getElementById("themeBtn").textContent = light ? "☾" : "☼";
-  try { localStorage.setItem("calcspace-scientific-theme", light ? "light" : "dark"); } catch {}
-});
-document.getElementById("copyBtn").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText(display.textContent); showToast("Result copied."); }
-  catch { showToast("Clipboard is unavailable in this context."); }
-});
-document.addEventListener("keydown", e => {
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (/^\d$/.test(e.key) || [".","+","-","*","/","(",")","%","^"].includes(e.key)) {
-    e.preventDefault();
-    const map = {"*":"×","/":"÷","-":"−"};
-    insert(map[e.key] || e.key);
-  } else if (e.key === "Enter" || e.key === "=") { e.preventDefault(); calculate(); }
-  else if (e.key === "Backspace") backspace();
-  else if (e.key === "Escape") clearCalc();
-});
-try {
-  if (localStorage.getItem("calcspace-scientific-theme") === "light") {
-    document.body.classList.add("light");
-    document.getElementById("themeBtn").textContent = "☾";
-  }
-} catch {}
+
 render();
 renderHistory();
